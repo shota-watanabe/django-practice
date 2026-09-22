@@ -1,0 +1,5 @@
+# 仮想環境
+tutorial-env/
+.venv/
+env/
+venv/
