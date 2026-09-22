@@ -3,3 +3,5 @@ tutorial-env/
 .venv/
 env/
 venv/
+
+djangotutorial/polls/__pycache__
