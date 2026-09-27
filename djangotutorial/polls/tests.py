@@ -2,6 +2,7 @@ import datetime
 
 from django.test import TestCase
 from django.utils import timezone
+from django.urls import reverse
 
 from .models import Question
 
@@ -33,3 +34,68 @@ class QuestionModelTests(TestCase):
         time = timezone.now() - datetime.timedelta(hours=23, minutes=59, seconds=59)
         recent_question = Question(pub_date=time)
         self.assertIs(recent_question.was_published_recently(), True)
+
+
+def create_question(question_text, days):
+    """
+    指定された question_text を使用して質問を作成し、現在を基準として指定された days 分だけずらした日時（過去に公開された質問なら負の値、未公開の質問なら正の値）で公開すること。
+    """
+    time = timezone.now() + datetime.timedelta(days=days)
+    return Question.objects.create(question_text=question_text, pub_date=time)
+
+
+class QuestionIndexViewTests(TestCase):
+    def test_no_questions(self):
+        """
+        質問が存在しない場合、適切なメッセージが表示されること。
+        """
+        response = self.client.get(reverse("polls:index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No polls are available.")
+        self.assertQuerySetEqual(response.context["latest_question_list"], [])
+
+    def test_past_question(self):
+        """
+        過去の pub_date を持つ質問は、
+        一覧ページに表示されること。
+        """
+        question = create_question(question_text="Past question.", days=-30)
+        response = self.client.get(reverse("polls:index"))
+        self.assertQuerySetEqual(
+            response.context["latest_question_list"],
+            [question],
+        )
+
+    def test_future_question(self):
+        """
+        未来の pub_date を持つ質問は、
+        一覧ページに表示されないこと。
+        """
+        create_question(question_text="Future question.", days=30)
+        response = self.client.get(reverse("polls:index"))
+        self.assertContains(response, "No polls are available.")
+        self.assertQuerySetEqual(response.context["latest_question_list"], [])
+
+    def test_future_question_and_past_question(self):
+        """
+        過去の質問と未来の質問の両方が存在する場合でも、過去の質問のみ表示されること。
+        """
+        question = create_question(question_text="Past question.", days=-30)
+        create_question(question_text="Future question.", days=30)
+        response = self.client.get(reverse("polls:index"))
+        self.assertQuerySetEqual(
+            response.context["latest_question_list"],
+            [question],
+        )
+
+    def test_two_past_questions(self):
+        """
+        質問一覧ページは複数の質問が表示されること。
+        """
+        question1 = create_question(question_text="Past question 1.", days=-30)
+        question2 = create_question(question_text="Past question 2.", days=-5)
+        response = self.client.get(reverse("polls:index"))
+        self.assertQuerySetEqual(
+            response.context["latest_question_list"],
+            [question2, question1],
+        )
